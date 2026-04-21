@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, getDocs, doc, getDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, doc, getDoc, query, orderBy } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCzPuunIosyXp4HaX0uKGaoG120I8FKEAE",
@@ -11,15 +11,18 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+export const db = getFirestore(app); // Exportamos db para que otros archivos lo usen si hace falta
 
 export const presupuestoService = {
+  // GUARDAR
   async crear(datos) {
     try {
+      // Usamos la fecha del sistema para evitar problemas de sincronización inmediatos
       const docRef = await addDoc(collection(db, "presupuestos"), {
         ...datos,
-        createdAt: serverTimestamp(),
+        fechaGuardado: new Date().toISOString() 
       });
+      console.log("Guardado con ID:", docRef.id);
       return { id: docRef.id, success: true };
     } catch (error) {
       console.error("Error al crear presupuesto:", error);
@@ -27,19 +30,26 @@ export const presupuestoService = {
     }
   },
 
-  async listar() {
+  // ESTA ES LA FUNCIÓN QUE USARÁ EL HISTORIAL Y CLIENTES
+  async obtenerTodos() {
     try {
-      const q = query(collection(db, "presupuestos"), orderBy("createdAt", "desc"));
+      const q = query(collection(db, "presupuestos"), orderBy("fecha", "desc"));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => ({
+      const resultados = snapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate?.() || new Date(),
+        ...doc.data()
       }));
+      console.log("Datos recuperados:", resultados);
+      return resultados;
     } catch (error) {
       console.error("Error al listar presupuestos:", error);
       return [];
     }
+  },
+
+  // Por si acaso algún componente todavía usa .listar()
+  async listar() {
+    return this.obtenerTodos();
   },
 
   async obtenerPorId(id) {
