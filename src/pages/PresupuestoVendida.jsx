@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, Plus, ArrowLeft, FileText, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { presupuestoService } from '../services/PresupuestoService';
@@ -12,6 +12,21 @@ const PresupuestoVendida = () => {
   const [cliente, setCliente] = useState({ nombre: '', telefono: '', direccion: '' });
   const [materiales, setMateriales] = useState([{ cant: '', desc: '', precio: '', total: 0 }]);
   const [manoObra, setManoObra] = useState([{ cant: '', detalle: '', precio: '', total: 0 }]);
+  
+  // ESTADOS PARA TOTALES EN TIEMPO REAL
+  const [subtotalMateriales, setSubtotalMateriales] = useState(0);
+  const [subtotalManoObra, setSubtotalManoObra] = useState(0);
+  const [totalGeneral, setTotalGeneral] = useState(0);
+
+  // RECALCULAR TODOS LOS TOTALES AUTOMÁTICAMENTE
+  useEffect(() => {
+    const totalMat = materiales.reduce((acc, i) => acc + (parseFloat(i.total) || 0), 0);
+    const totalMO = manoObra.reduce((acc, i) => acc + (parseFloat(i.total) || 0), 0);
+    
+    setSubtotalMateriales(totalMat);
+    setSubtotalManoObra(totalMO);
+    setTotalGeneral(totalMat + totalMO);
+  }, [materiales, manoObra]);
 
   const updateRow = (index, field, value, type) => {
     const list = type === 'mat' ? [...materiales] : [...manoObra];
@@ -34,27 +49,27 @@ const PresupuestoVendida = () => {
     setManoObra(list.length ? list : [{ cant: '', detalle: '', precio: '', total: 0 }]);
   };
 
-  const subtotalMateriales = materiales.reduce((acc, i) => acc + i.total, 0);
-  const subtotalManoObra = manoObra.reduce((acc, i) => acc + i.total, 0);
-  const totalGeneral = subtotalMateriales + subtotalManoObra;
-
   const guardarPresupuesto = async () => {
     if (!cliente.nombre) return alert("Ingresa el nombre del cliente");
     setCargando(true);
-    const datos = {
-      clienteNombre: cliente.nombre,
-      clienteTelefono: cliente.telefono,
-      clienteDireccion: cliente.direccion,
-      materiales,
-      manoObra,
-      subtotalMateriales,
-      subtotalManoObra,
-      totalFinal: totalGeneral,
-      tipo: 'vendida',
-      fecha: new Date().toISOString()
-    };
-    const res = await presupuestoService.crear(datos);
-    if (res.success) alert("Presupuesto guardado");
+    try {
+      const datos = {
+        clienteNombre: cliente.nombre,
+        clienteTelefono: cliente.telefono,
+        clienteDireccion: cliente.direccion,
+        materiales,
+        manoObra,
+        subtotalMateriales,
+        subtotalManoObra,
+        totalFinal: totalGeneral,
+        tipo: 'vendida',
+        fecha: new Date().toISOString()
+      };
+      const res = await presupuestoService.crear(datos);
+      if (res.success) alert("Presupuesto guardado");
+    } catch (error) {
+      alert("Error al conectar con la base de datos");
+    }
     setCargando(false);
   };
 
@@ -72,9 +87,18 @@ const PresupuestoVendida = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-inner">
-          <input className="p-3 bg-white rounded-xl border-none shadow-sm focus:ring-2 focus:ring-emerald-500" placeholder="Cliente" value={cliente.nombre} onChange={(e) => setCliente({...cliente, nombre: e.target.value})} />
-          <input className="p-3 bg-white rounded-xl border-none shadow-sm focus:ring-2 focus:ring-emerald-500" placeholder="Teléfono" value={cliente.telefono} onChange={(e) => setCliente({...cliente, telefono: e.target.value})} />
-          <input className="p-3 bg-white rounded-xl border-none shadow-sm focus:ring-2 focus:ring-emerald-500" placeholder="Dirección" value={cliente.direccion} onChange={(e) => setCliente({...cliente, direccion: e.target.value})} />
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Cliente</label>
+            <input className="p-3 bg-white rounded-xl border-none shadow-sm focus:ring-2 focus:ring-emerald-500" placeholder="Nombre completo" value={cliente.nombre} onChange={(e) => setCliente({...cliente, nombre: e.target.value})} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Teléfono</label>
+            <input className="p-3 bg-white rounded-xl border-none shadow-sm focus:ring-2 focus:ring-emerald-500" placeholder="+56 9..." value={cliente.telefono} onChange={(e) => setCliente({...cliente, telefono: e.target.value})} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Dirección</label>
+            <input className="p-3 bg-white rounded-xl border-none shadow-sm focus:ring-2 focus:ring-emerald-500" placeholder="Obra / Domicilio" value={cliente.direccion} onChange={(e) => setCliente({...cliente, direccion: e.target.value})} />
+          </div>
         </div>
 
         {/* Sección Materiales */}
@@ -97,9 +121,9 @@ const PresupuestoVendida = () => {
                 {materiales.map((item, idx) => (
                   <tr key={idx} className="border-b border-gray-50">
                     <td className="p-2"><input type="number" className="w-full text-center font-bold text-emerald-600 border-none bg-transparent focus:ring-0" value={item.cant} onChange={(e) => updateRow(idx, 'cant', e.target.value, 'mat')} /></td>
-                    <td className="p-2"><input type="text" className="w-full border-none bg-transparent focus:ring-0" placeholder="Material..." value={item.desc} onChange={(e) => updateRow(idx, 'desc', e.target.value, 'mat')} /></td>
+                    <td className="p-2"><input type="text" className="w-full border-none bg-transparent focus:ring-0" placeholder="Ej: Codo PPR..." value={item.desc} onChange={(e) => updateRow(idx, 'desc', e.target.value, 'mat')} /></td>
                     <td className="p-2"><input type="number" className="w-full text-right border-none bg-transparent focus:ring-0" value={item.precio} onChange={(e) => updateRow(idx, 'precio', e.target.value, 'mat')} /></td>
-                    <td className="p-3 text-right font-bold text-slate-700 bg-slate-50/30">${item.total.toLocaleString('es-CL')}</td>
+                    <td className="p-3 text-right font-bold text-slate-700 bg-slate-50/30">${(item.total || 0).toLocaleString('es-CL')}</td>
                     <td className="p-2 text-center"><button onClick={() => eliminarMaterial(idx)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button></td>
                   </tr>
                 ))}
@@ -129,9 +153,9 @@ const PresupuestoVendida = () => {
                 {manoObra.map((item, idx) => (
                   <tr key={idx} className="border-b border-gray-50">
                     <td className="p-2"><input type="number" className="w-full text-center font-bold text-blue-600 border-none bg-transparent focus:ring-0" value={item.cant} onChange={(e) => updateRow(idx, 'cant', e.target.value, 'mo')} /></td>
-                    <td className="p-2"><input type="text" className="w-full border-none bg-transparent focus:ring-0" placeholder="Servicio..." value={item.detalle} onChange={(e) => updateRow(idx, 'detalle', e.target.value, 'mo')} /></td>
+                    <td className="p-2"><input type="text" className="w-full border-none bg-transparent focus:ring-0" placeholder="Ej: Instalación..." value={item.detalle} onChange={(e) => updateRow(idx, 'detalle', e.target.value, 'mo')} /></td>
                     <td className="p-2"><input type="number" className="w-full text-right border-none bg-transparent focus:ring-0" value={item.precio} onChange={(e) => updateRow(idx, 'precio', e.target.value, 'mo')} /></td>
-                    <td className="p-3 text-right font-bold text-slate-700 bg-slate-50/30">${item.total.toLocaleString('es-CL')}</td>
+                    <td className="p-3 text-right font-bold text-slate-700 bg-slate-50/30">${(item.total || 0).toLocaleString('es-CL')}</td>
                     <td className="p-2 text-center"><button onClick={() => eliminarMO(idx)} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button></td>
                   </tr>
                 ))}
@@ -151,21 +175,25 @@ const PresupuestoVendida = () => {
             <p className="text-blue-600 text-[10px] uppercase font-black mb-1">Total Mano de Obra</p>
             <p className="text-2xl font-black text-slate-700">${subtotalManoObra.toLocaleString('es-CL')}</p>
           </div>
-          <div className="bg-slate-900 p-4 rounded-2xl shadow-xl border border-slate-700">
+          <div className="bg-slate-900 p-4 rounded-2xl shadow-xl border border-slate-700 text-right">
             <p className="text-emerald-400 text-[10px] uppercase font-black mb-1">Total Proyecto</p>
             <p className="text-3xl font-black text-white">${totalGeneral.toLocaleString('es-CL')}</p>
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row gap-4 mt-8">
-          <button onClick={guardarPresupuesto} disabled={cargando} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase hover:bg-slate-800 shadow-lg transition-all">
-            {cargando ? 'Guardando...' : ' Guardar'}
+          <button onClick={guardarPresupuesto} disabled={cargando} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase hover:scale-[1.02] shadow-lg transition-all">
+            {cargando ? 'Guardando...' : '1. Guardar'}
           </button>
           <PDFDownloadLink 
             document={<PDFPresupuesto datos={{clienteNombre: cliente.nombre, clienteTelefono: cliente.telefono, clienteDireccion: cliente.direccion, materiales, manoObra, subtotalMateriales, subtotalManoObra, totalFinal: totalGeneral}} tipo="vendida" />} 
-            fileName={`Cotizacion_${cliente.nombre}.pdf`}
+            fileName={`Cotizacion_${cliente.nombre || 'S_N'}.pdf`}
           >
-            <button className="w-full md:w-auto bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase hover:bg-emerald-700 flex items-center justify-center gap-2 shadow-lg transition-all"><FileText size={18}/>  Descargar PDF</button>
+            {({ loading }) => (
+              <button className="w-full md:w-auto bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase hover:bg-emerald-700 flex items-center justify-center gap-2 shadow-lg transition-all">
+                <FileText size={18}/> {loading ? 'Preparando...' : '2. Descargar PDF'}
+              </button>
+            )}
           </PDFDownloadLink>
         </div>
       </div>
